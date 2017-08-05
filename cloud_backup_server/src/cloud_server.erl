@@ -47,9 +47,14 @@ server_process() ->
 
 		{ ok, Port} ->
 			io:format(" Connection Port ~p~n",[Port]),
-			{ok, Listening_socket} = gen_tcp:listen(Port, [list, {packet, 0}, {active, false}]),
+			case gen_tcp:listen(Port, [list, {packet, 0}, {active, false}]) of
 
-			wait_for_request( Listening_socket )
+				{ok, Listening_socket} -> 
+					wait_for_request( Listening_socket );
+
+				{ error, Reason } ->
+					io:format("Failed to listen on Port: ~p due to error: ~p~n",[ Port, Reason ])
+			end
 	end.
 
 %% --------------------------------------------------------------------
@@ -107,17 +112,24 @@ tcp_message_receive_loop(Socket) ->
 
 			inet:setopts(Socket,[{active,false}]),
 			receive_file_name_and_data( Socket ),
-			gen_tcp:send(Socket, "success"),
-
-			tcp_message_receive_loop(Socket);
+			gen_tcp:send(Socket, "success");
 
 		{tcp,Socket,"list"} ->
 
 			List_of_file_names = get_name_of_all_files(),
 			io:format("list of files ~p ~n",[List_of_file_names]),
-			gen_tcp:send(Socket, string:join( List_of_file_names, ",") ),
+			gen_tcp:send(Socket, string:join( List_of_file_names, ",") );
 
-			tcp_message_receive_loop(Socket);
+		{tcp,Socket,"get"} ->
+			inet:setopts(Socket,[{active,false}]),
+			case gen_tcp:recv(Socket, 0) of
+				{ok, File_name} ->
+					send_requested_file_to_client( File_name, Socket );
+
+				{error, closed} ->
+					io:format("Socket ~w closed [~w]~n",[Socket,self()]),
+            				ok
+			end;
 
 		{tcp_closed,Socket} ->
 		    io:format("Socket ~w closed [~w]~n",[Socket,self()]),
@@ -181,7 +193,7 @@ save_file(Data_to_write_into_file, File_name ) ->
 		{ ok, Target_folder_name} ->
 			io:format("~n Filename: ~p~p~n",[ Target_folder_name, File_name ]),
 			{ok, Fd} = file:open(Target_folder_name++"/"++File_name, write),
-			file:write(Fd, Data_to_write_into_file),
+			file:write(Fd, erlang:list_to_binary(Data_to_write_into_file)),
 			file:close(Fd)
 	end.
 
@@ -208,4 +220,16 @@ get_name_of_all_files() ->
 			Result
 	end.
 
+send_requested_file_to_client( File_name, Socket ) ->
+
+	case application:get_env( cloud_backup_server, target_folder_name) of
 	
+		undefined ->
+			io:format("~n Set target folder name in VM.args file~n"),
+			ok;
+
+		{ ok, Target_folder_name} ->
+			Ret=file:sendfile(Target_folder_name++"/"++File_name, Socket), 
+			io:format("result ~p ~n", [ Ret ])
+	end.
+

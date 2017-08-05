@@ -8,7 +8,7 @@ server:
 	 cd ./cloud_backup_server && ./rebar3 release
 
 client:
-	cd ./cloud_backup_client && ./rebar3 compile
+	cd ./cloud_backup_client && ./rebar3 release
 
 server_test:
 	cd ./cloud_backup_server && ./rebar3 eunit --application=cloud_backup_server

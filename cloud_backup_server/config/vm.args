@@ -2,7 +2,7 @@
 
 -setcookie cloud_backup_server_cookie
 
--cloud_backup_server ip_address localhost
+-cloud_backup_server ip_address '"localhost"'
 -cloud_backup_server port_number 5678
 
 -cloud_backup_server target_folder_name '"./storage/"'
