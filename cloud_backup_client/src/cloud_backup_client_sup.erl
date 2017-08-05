@@ -1,9 +1,9 @@
 %%%-------------------------------------------------------------------
-%% @doc cloud_backup_server top level supervisor.
+%% @doc cloud_backup_client top level supervisor.
 %% @end
 %%%-------------------------------------------------------------------
 
--module(cloud_backup_server_sup).
+-module(cloud_backup_client_sup).
 
 -behaviour(supervisor).
 
@@ -28,10 +28,7 @@ start_link() ->
 
 %% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
 init([]) ->
-
-	Cloud_server = { cloud_server, { cloud_server, start_link, []}, permanent, 2000, worker, [cloud_server]},
-
-    {ok, { {one_for_one, 5, 10}, [ Cloud_server ]} }.
+    {ok, { {one_for_all, 0, 1}, []} }.
 
 %%====================================================================
 %% Internal functions
