@@ -1,0 +1,6 @@
+-sname cloud_backup_server
+
+-setcookie cloud_backup_server_cookie
+
++K true
++A30
