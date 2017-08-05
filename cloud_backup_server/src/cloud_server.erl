@@ -8,31 +8,34 @@
 %% Exported Functions
 %% ====================================================================
 -export([ 	
-			start_link/0, 
-			server_process/0
-		]).
+		start_link/0, 
+		server_process/0
+	]).
 
-%% -------------------------------------------------------------
+%% --------------------------------------------------------------------
 %% 	This function is called by application supervisor and it starts
 %%	the cloud backup server process.
 %%
 %%	Function has no argument
 %%
-%%	Function returns : { ok, process-id of cloud backup server }
-%% -------------------------------------------------------------
+%%	Function returns : { ok, process-id of cloud backup server }.
+%%
+%%	This return format is important becuase the application supervisor
+%%	which calls this function expects return value in the above given
+%%	format
+%% ---------------------------------------------------------------------
 
 start_link() ->
 
 	Pid = erlang:spawn_link(?MODULE, server_process, []),
 	{ ok, Pid }.
 
-%% -------------------------------------------------------------
-%% 	
+%% --------------------------------------------------------------------
+%%  	This is the server process which listens on the port number
+%%    	which is read from the application environment variable.
 %%
-%%	Function has no argument
-%%
-%%	Function returns : { ok, process-id of cloud backup server }
-%% -------------------------------------------------------------
+%%	The function has no argument and no return value
+%% --------------------------------------------------------------------
 
 server_process() ->
 
@@ -49,13 +52,18 @@ server_process() ->
 			wait_for_request( Listening_socket )
 	end.
 
-%% -------------------------------------------------------------
-%% 	
+%% --------------------------------------------------------------------
+%% 	This function waits for the tcp connection requests made by
+%%	clients. Once the connection is accepted it calls the message
+%%	receive looping function.
 %%
-%%	Function has no argument
+%%	The function is in a never ending loop and when any client closes
+%%	its connection then waits for other clients connection request
 %%
-%%	Function returns : { ok, process-id of cloud backup server }
-%% -------------------------------------------------------------
+%%	The function receives the listening socket number
+%%
+%%	The function does not return anything
+%% --------------------------------------------------------------------
 
 wait_for_request( Listening_socket ) ->
 
@@ -69,41 +77,65 @@ wait_for_request( Listening_socket ) ->
 			wait_for_request( Listening_socket )
 	end.
 
-%% -------------------------------------------------------------
-%% 	
+%% --------------------------------------------------------------------
+%% 	The function waits for the request send by the client
+%%	and performs operations based on the request 
 %%
+%%	The message format is: 
+%%		{ tcp::atom(), Socket::listening socket, Request/Data}
 %%
-%% -------------------------------------------------------------
+%%	Currently function supports following requests
+%%		1. post
+%%		2. list
+%%		3. get 
+%%
+%%	When a port is closed then it receives a message in the below
+%%	given format
+%%		{tcp_closed,Socket}
+%%
+%%	The function receives Listening socket as argument
+%% --------------------------------------------------------------------
 
 tcp_message_receive_loop(Socket) ->
 
-    inet:setopts(Socket,[{active,once}]),
+	inet:setopts(Socket,[{active,once}]),
 
-    receive
+    	receive
 		{tcp,Socket,"post"} ->
 
 			io:format("post Message is received ~n"),
 
 			inet:setopts(Socket,[{active,false}]),
-            receive_file_name_and_data( Socket ),
-
+			receive_file_name_and_data( Socket ),
 			gen_tcp:send(Socket, "success"),
 
 			tcp_message_receive_loop(Socket);
 
-        {tcp_closed,Socket} ->
-            io:format("Socket ~w closed [~w]~n",[Socket,self()]),
-            ok;
+		{tcp,Socket,"list"} ->
 
-		Any ->
-			io:format("Unknown Message is received ~p~n",[Any])
-    end.
+			List_of_file_names = get_name_of_all_files(),
+			io:format("list of files ~p ~n",[List_of_file_names]),
+			gen_tcp:send(Socket, string:join( List_of_file_names, ",") ),
 
-%% -------------------------------------------------------------
-%% 	
+			tcp_message_receive_loop(Socket);
+
+		{tcp_closed,Socket} ->
+		    io:format("Socket ~w closed [~w]~n",[Socket,self()]),
+		    ok
+	    end.
+
+%% --------------------------------------------------------------------
+%% 	This function is used to read the file name and data to write
+%%	into that file through tcp port.
 %%
-%%	
-%% -------------------------------------------------------------
+%%	This function is called when the message receive loop receives a
+%%	post request. Because post request is expecting file name and content
+%%	to write into the file.
+%%
+%%	This function receives Listening socket number as argument
+%%
+%%	Function returns an atom 'ok'	
+%% --------------------------------------------------------------------
 
 receive_file_name_and_data( Socket ) ->
 
@@ -122,14 +154,23 @@ receive_file_name_and_data( Socket ) ->
 
 		{error, closed} ->
 			io:format("Socket ~w closed [~w]~n",[Socket,self()]),
-    		ok
+    			ok
 	end.
 
-%% -------------------------------------------------------------
-%% 	
-%%
+%% --------------------------------------------------------------------
+%% 	The function recives the file name and data to write into the file
+%%	as argument and saves it mentioned location.
 %%	
-%% -------------------------------------------------------------
+%%	The argument Data_to_write_into_file should contain binary value only and
+%%	The argument File_name should contain the name of the file in a string
+%%	eg : "some_file.txt"
+%%
+%%	Function write the content into the file and save the file into the
+%%	directory given in the target directory environment variable set through
+%%	vm.args
+%%
+%%	Function returns an atom 'ok' 	
+%% --------------------------------------------------------------------
 save_file(Data_to_write_into_file, File_name ) ->
 
 	case application:get_env( cloud_backup_server, target_folder_name) of
@@ -144,3 +185,27 @@ save_file(Data_to_write_into_file, File_name ) ->
 			file:close(Fd)
 	end.
 
+%% --------------------------------------------------------------------
+%% 	The function reads name of all the files present in the directory 
+%%	given in the target directory environment variable set through
+%%	vm.args
+%%
+%%	Function returns list of file names separated by commas
+%%	eg : "some_file1.txt, sample_file2.txt"		
+%% --------------------------------------------------------------------
+
+get_name_of_all_files() ->
+
+	case application:get_env( cloud_backup_server, target_folder_name) of
+	
+		undefined ->
+			io:format("~n Set target folder name in VM.args file~n"),
+			[];
+
+		{ ok, Target_folder_name} ->
+			io:format("~n Filename: ~p~n",[ Target_folder_name ]),
+			{ok, Result } = file:list_dir_all(Target_folder_name),
+			Result
+	end.
+
+	

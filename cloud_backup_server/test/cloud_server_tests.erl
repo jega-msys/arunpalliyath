@@ -7,10 +7,10 @@
 
 
 all_test_() ->
-    {setup, fun setup/0, fun teardown/1,
+    	{setup, fun setup/0, fun teardown/1,
      	[
-			{timeout, 10, fun which_servers_internal/0}
-		]}.
+		{timeout, 10, [ fun post_function/0, fun list_function/0 ] }
+	]}.
 
 setup() ->
     ok = application:start(cloud_backup_server),
@@ -29,8 +29,8 @@ teardown(_) ->
 	ok = application:stop(cloud_backup_server).
 
 
-which_servers_internal() ->
-    ?assertMatch("success",post("./source/sample.txt")).
+post_function() ->
+    	?assertMatch("success",post("./source/sample.txt")).
 
 post(File_location) ->
 	
@@ -42,7 +42,17 @@ post(File_location) ->
 	timer:sleep(1000),
 	file:sendfile(File_location, Sock), 
 	{ok, Reply_from_server} = gen_tcp:recv(Sock,0),
+	gen_tcp:close(Sock),
 	Reply_from_server.
 
-    
+
+list_function() ->
+    	?assertMatch("sample.txt",list_files()).
+
+list_files() ->
+	{ok,Sock} = gen_tcp:connect("localhost",5678,[{active,false}, {packet,0}]),
+	gen_tcp:send(Sock, "list" ),
+	{ok, List_of_file_names} = gen_tcp:recv(Sock,0),
+    	gen_tcp:close(Sock),
+	List_of_file_names.   
 
