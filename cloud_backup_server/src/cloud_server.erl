@@ -215,11 +215,19 @@ get_name_of_all_files() ->
 			[];
 
 		{ ok, Target_folder_name} ->
-			io:format("~n Filename: ~p~n",[ Target_folder_name ]),
+			io:format("~n Storage folder is: ~p~n",[ Target_folder_name ]),
 			{ok, Result } = file:list_dir_all(Target_folder_name),
 			Result
 	end.
 
+%% --------------------------------------------------------------------
+%% 	The function reads and sends the file requested file to the client
+%%
+%%	Function takes file name and Listening socket as arguments and
+%%	reads the file from the target directory and send to client.
+%%
+%%	Function returns an aton 'ok'
+%% --------------------------------------------------------------------
 send_requested_file_to_client( File_name, Socket ) ->
 
 	case application:get_env( cloud_backup_server, target_folder_name) of
@@ -229,7 +237,15 @@ send_requested_file_to_client( File_name, Socket ) ->
 			ok;
 
 		{ ok, Target_folder_name} ->
-			Ret=file:sendfile(Target_folder_name++"/"++File_name, Socket), 
-			io:format("result ~p ~n", [ Ret ])
+
+			case lists:member( File_name, get_name_of_all_files()) of
+				true->
+					Ret=file:sendfile(Target_folder_name++"/"++File_name, Socket), 
+					io:format("result ~p ~n", [ Ret ]);
+
+				false ->
+					gen_tcp:send(Socket, "Error-file_is_not_present_in_server"),
+					io:format("File: ~p is not available ~n", [ File_name ])
+			end
 	end.
 
