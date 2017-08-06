@@ -155,3 +155,12 @@ Function returns:
 
 { error, Some_unexpected_errors }
 ```
+## How to run Unit test ##
+
+There is a target available in make file to run unit test cases of server and client separately, here are they
+
+```
+$ make server_test
+
+$ make client_test
+```
