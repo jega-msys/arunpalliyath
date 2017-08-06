@@ -1,5 +1,5 @@
 
-.PHONY: server client clean clean_server clean_client server_test
+.PHONY: server client clean clean_server clean_client server_test client_test
 
 all: server client
 
@@ -12,6 +12,9 @@ client:
 
 server_test:
 	cd ./cloud_backup_server && ./rebar3 eunit --application=cloud_backup_server
+
+client_test:
+	cd ./cloud_backup_server && ./rebar3 eunit --application=cloud_backup_client
 
 clean:
 	make clean_server clean_client
