@@ -111,14 +111,21 @@ tcp_message_receive_loop(Socket) ->
 			io:format("post Message is received ~n"),
 
 			inet:setopts(Socket,[{active,false}]),
-			receive_file_name_and_data( Socket ),
-			gen_tcp:send(Socket, "success");
+			Reply = receive_file_name_and_data( Socket ),
+			gen_tcp:send(Socket, Reply);
 
 		{tcp,Socket,"list"} ->
 
 			List_of_file_names = get_name_of_all_files(),
-			io:format("list of files ~p ~n",[List_of_file_names]),
-			gen_tcp:send(Socket, string:join( List_of_file_names, ",") );
+			case List_of_file_names of
+				[] ->
+					io:format("list of files ~p ~n",[List_of_file_names]),
+					gen_tcp:send(Socket, "no_files_present" );
+
+				_files_are_present ->
+					io:format("list of files ~p ~n",[List_of_file_names]),
+					gen_tcp:send(Socket, string:join( List_of_file_names, ",") )
+			end;
 
 		{tcp,Socket,"get"} ->
 			inet:setopts(Socket,[{active,false}]),
@@ -161,12 +168,12 @@ receive_file_name_and_data( Socket ) ->
 
 				{error, closed} ->
 					io:format("Socket ~w closed [~w]~n",[Socket,self()]),
-					ok
+					"Error-connection closed"
 			end;
 
 		{error, closed} ->
 			io:format("Socket ~w closed [~w]~n",[Socket,self()]),
-    			ok
+    			"Error-connection closed"
 	end.
 
 %% --------------------------------------------------------------------
@@ -188,13 +195,15 @@ save_file(Data_to_write_into_file, File_name ) ->
 	case application:get_env( cloud_backup_server, target_folder_name) of
 	
 		undefined ->
-			io:format("~n Set target folder name in VM.args file~n");
+			io:format("~n Set target folder name in VM.args file~n"),
+			"Error-upload failed";
 
 		{ ok, Target_folder_name} ->
 			io:format("~n Filename: ~p~p~n",[ Target_folder_name, File_name ]),
 			{ok, Fd} = file:open(Target_folder_name++"/"++File_name, write),
 			file:write(Fd, erlang:list_to_binary(Data_to_write_into_file)),
-			file:close(Fd)
+			file:close(Fd),
+			"upload_successful"
 	end.
 
 %% --------------------------------------------------------------------
@@ -216,8 +225,12 @@ get_name_of_all_files() ->
 
 		{ ok, Target_folder_name} ->
 			io:format("~n Storage folder is: ~p~n",[ Target_folder_name ]),
-			{ok, Result } = file:list_dir_all(Target_folder_name),
-			Result
+			case file:list_dir_all(Target_folder_name) of
+				{ok, Result } -> 
+					Result;
+				{error, _Reason} ->
+					[]
+			end
 	end.
 
 %% --------------------------------------------------------------------
@@ -226,7 +239,7 @@ get_name_of_all_files() ->
 %%	Function takes file name and Listening socket as arguments and
 %%	reads the file from the target directory and send to client.
 %%
-%%	Function returns an aton 'ok'
+%%	Function returns an atom 'ok'
 %% --------------------------------------------------------------------
 send_requested_file_to_client( File_name, Socket ) ->
 
@@ -234,7 +247,7 @@ send_requested_file_to_client( File_name, Socket ) ->
 	
 		undefined ->
 			io:format("~n Set target folder name in VM.args file~n"),
-			ok;
+			gen_tcp:send(Socket, "Error-file_is_not_present_in_server");
 
 		{ ok, Target_folder_name} ->
 

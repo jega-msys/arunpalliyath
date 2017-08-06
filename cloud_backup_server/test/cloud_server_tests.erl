@@ -33,7 +33,7 @@ teardown(_) ->
 
 
 post_function() ->
-    	?assertMatch("success",post("./source/sample.txt")).
+    	?assertMatch("upload_successful",post("./source/sample.txt")).
 
 post(File_location) ->
 	
